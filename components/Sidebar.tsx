@@ -11,11 +11,12 @@ export default function Sidebar() {
   const gcps = useStore((s) => s.gcps);
   const setUserCount = useStore((s) => s.setUserCount);
   const reset = useStore((s) => s.reset);
+  const regenerate = useStore((s) => s.regenerate);
 
   const area = useArea();
   const recommended = useRecommendedCount();
   const min = Math.max(3, Math.ceil(recommended * 0.5));
-  const max = Math.max(min + 1, Math.ceil(recommended * 1.5));
+  const max = Math.max(min + 1, Math.ceil(recommended * 1.5), gcps.length);
 
   return (
     <aside className="flex h-full w-80 flex-col gap-4 border-r bg-gray-50 p-4">
@@ -69,6 +70,15 @@ export default function Sidebar() {
           <p className="mt-2 text-xs text-gray-500">
             마커 드래그로 이동, 우클릭으로 삭제, 빈 곳 클릭으로 추가.
           </p>
+          <Button
+            variant="outline"
+            size="sm"
+            className="mt-3 w-full"
+            onClick={() => regenerate()}
+            disabled={gcps.length === recommended}
+          >
+            권장값({recommended}개)으로 재추천
+          </Button>
         </div>
       )}
 
