@@ -24,8 +24,20 @@ function loadKakaoSdk(appKey: string): Promise<void> {
 
     const existing = document.getElementById(SCRIPT_ID) as HTMLScriptElement | null;
     if (existing) {
-      existing.addEventListener('load', () => window.kakao.maps.load(() => resolve()));
-      existing.addEventListener('error', () => reject(new Error('SDK script error')));
+      // Defensive: SDK may already be ready when we discover an existing tag.
+      if (window.kakao?.maps) {
+        window.kakao.maps.load(() => resolve());
+        return;
+      }
+      const timer = setTimeout(() => reject(new Error('SDK load timeout')), LOAD_TIMEOUT_MS);
+      existing.addEventListener('load', () => {
+        clearTimeout(timer);
+        window.kakao.maps.load(() => resolve());
+      });
+      existing.addEventListener('error', () => {
+        clearTimeout(timer);
+        reject(new Error('SDK script error'));
+      });
       return;
     }
 
@@ -33,13 +45,20 @@ function loadKakaoSdk(appKey: string): Promise<void> {
     script.id = SCRIPT_ID;
     script.async = true;
     script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&libraries=drawing&autoload=false`;
-    script.onload = () => window.kakao.maps.load(() => resolve());
-    script.onerror = () => reject(new Error('SDK script error'));
-    document.head.appendChild(script);
 
-    setTimeout(() => {
+    const timer = setTimeout(() => {
       if (!window.kakao?.maps) reject(new Error('SDK load timeout'));
     }, LOAD_TIMEOUT_MS);
+
+    script.onload = () => {
+      clearTimeout(timer);
+      window.kakao.maps.load(() => resolve());
+    };
+    script.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error('SDK script error'));
+    };
+    document.head.appendChild(script);
   });
 }
 
@@ -50,11 +69,11 @@ export default function MapContainer() {
   const mapRef = useRef<kakao.maps.Map | null>(null);
   const polygonRef = useRef<kakao.maps.Polygon | null>(null);
   const markersRef = useRef<
-    Map<string, { marker: kakao.maps.Marker; overlay: kakao.maps.CustomOverlay }>
+    Map<string, { marker: kakao.maps.Marker; overlay: kakao.maps.CustomOverlay; label: string }>
   >(new Map());
   const drawingManagerRef = useRef<kakao.maps.drawing.DrawingManager | null>(null);
 
-  const [status, setStatus] = useState<'idle' | 'loading' | 'ready' | 'error'>('idle');
+  const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState<string>('');
   const [mapType, setMapType] = useState<MapType>('SKYVIEW');
 
@@ -65,14 +84,12 @@ export default function MapContainer() {
   const setDrawingMode = useStore((s) => s.setDrawingMode);
   const moveGCP = useStore((s) => s.moveGCP);
   const removeGCP = useStore((s) => s.removeGCP);
-  const addGCP = useStore((s) => s.addGCP);
 
   // 1) SDK load + map init
   useEffect(() => {
     if (!appKey || !containerRef.current) return;
 
     let cancelled = false;
-    setStatus('loading');
 
     loadKakaoSdk(appKey)
       .then(() => {
@@ -90,7 +107,7 @@ export default function MapContainer() {
           if (!latLng) return;
           const state = useStore.getState();
           if (state.drawingMode || !state.polygon) return;
-          addGCP(latLng.getLat(), latLng.getLng());
+          state.addGCP(latLng.getLat(), latLng.getLng());
         });
 
         setStatus('ready');
@@ -104,7 +121,7 @@ export default function MapContainer() {
     return () => {
       cancelled = true;
     };
-  }, [appKey, addGCP]);
+  }, [appKey]);
 
   // 2) mapType sync
   useEffect(() => {
@@ -164,14 +181,21 @@ export default function MapContainer() {
       }
     }
 
+    // NOTE: `removeGCP` in the store relabels remaining GCPs (re-numbering),
+    // so we must compare labels to detect when an overlay needs to be rebuilt.
     for (const g of gcps) {
       const pos = new kakao.maps.LatLng(g.lat, g.lng);
       const existing = markersRef.current.get(g.id);
       if (existing) {
         existing.marker.setPosition(pos);
-        existing.overlay.setMap(null);
-        const overlay = makeLabelOverlay(g, pos, map);
-        markersRef.current.set(g.id, { marker: existing.marker, overlay });
+        if (existing.label !== g.label) {
+          // Label was reassigned (e.g., after a removeGCP renumbered the list).
+          existing.overlay.setMap(null);
+          const overlay = makeLabelOverlay(g, pos, map);
+          markersRef.current.set(g.id, { marker: existing.marker, overlay, label: g.label });
+        } else {
+          existing.overlay.setPosition(pos);
+        }
         continue;
       }
 
@@ -182,7 +206,7 @@ export default function MapContainer() {
       });
       kakao.maps.event.addListener(marker, 'rightclick', () => removeGCP(g.id));
       const overlay = makeLabelOverlay(g, pos, map);
-      markersRef.current.set(g.id, { marker, overlay });
+      markersRef.current.set(g.id, { marker, overlay, label: g.label });
     }
   }, [gcps, status, moveGCP, removeGCP]);
 
@@ -241,6 +265,8 @@ export default function MapContainer() {
       markersRef.current.clear();
       polygonRef.current?.setMap(null);
       polygonRef.current = null;
+      drawingManagerRef.current?.cancel();
+      drawingManagerRef.current = null;
     };
   }, []);
 
