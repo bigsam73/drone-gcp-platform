@@ -5,11 +5,13 @@
 ## Setup
 
 1. `.env.local.example`을 `.env.local`로 복사
-2. Google Maps JavaScript API 키 발급 후 입력
-   - https://console.cloud.google.com → APIs & Services → Credentials
-   - Maps JavaScript API 활성화
-3. `npm install`
-4. `npm run dev`
+2. 카카오 개발자 콘솔에서 JavaScript 키 발급
+   - https://developers.kakao.com/ → 내 애플리케이션 → 앱 생성
+   - 앱 키 → **JavaScript 키** 복사
+   - **플랫폼 → Web** 에서 사용할 도메인 등록 (로컬은 `http://localhost:3000`)
+3. `.env.local`의 `NEXT_PUBLIC_KAKAO_MAP_APP_KEY`에 키 입력
+4. `npm install`
+5. `npm run dev`
 
 ## 사용법
 
@@ -43,17 +45,19 @@ GCP 추천 공식:
 
 ## 트러블슈팅
 
-- **지도가 회색 화면으로 표시됨**: API 키 제한이 잘못 걸려 있거나 Maps JavaScript API가 활성화되지 않았습니다. Google Cloud Console → APIs & Services → Library에서 "Maps JavaScript API"를 활성화하고, Credentials에서 키의 HTTP referrer 설정을 확인하세요.
-- **다각형 그리기 도구가 작동하지 않음**: `@react-google-maps/api`의 `libraries`에 `drawing`이 포함되어 있는지 확인. 이미 코드에 포함되어 있으니 일반적으로는 문제 없음.
-- **KML 다운로드가 안 됨**: 브라우저의 팝업/다운로드 차단 설정 확인. 또는 폴리곤이 3점 미만인 상태에서 GCP도 없으면 버튼이 비활성화됩니다.
-- **개발 서버에서 환경변수가 적용 안 됨**: `.env.local`을 수정한 뒤 `npm run dev`를 재시작하세요. Next.js는 환경변수 변경시 자동으로 reload하지 않습니다.
+- **지도가 회색 화면 또는 로딩 실패**: 카카오 개발자 콘솔의 "플랫폼 → Web" 도메인 목록에 현재 접속 중인 origin이 등록되어 있는지 확인. 로컬은 `http://localhost:3000`을 등록해야 함.
+- **다각형 그리기가 안 됨**: SDK URL의 `libraries=drawing` 파라미터가 포함되어 있는지 확인 (코드에 이미 포함). 브라우저 강력 새로고침(Cmd+Shift+R 또는 Ctrl+Shift+R)으로 캐시된 SDK 제거.
+- **KML 다운로드가 안 됨**: 브라우저의 팝업/다운로드 차단 설정 확인. 폴리곤이 3점 미만이고 GCP도 없으면 버튼이 비활성화됨.
+- **환경변수가 적용 안 됨**: `.env.local` 수정 후 dev 서버 재시작 필수. Next.js는 환경변수 변경 시 자동으로 reload하지 않음.
+- **타입 토글이 안 보임**: 지도 로드가 완료된 후에만 표시됨. 콘솔 에러를 확인하고, 네트워크 탭에서 `dapi.kakao.com` 요청 성공 여부 확인.
+- **GCP 라벨이 표시 안 됨**: `app/globals.css`의 `.gcp-label` 스타일이 빌드에 포함되어 있는지 확인.
 
 ## 스택
 
 - Next.js 16 + React 19 + TypeScript
 - Tailwind CSS v4 + shadcn/ui
 - Zustand (전역 상태)
-- @react-google-maps/api (Google Maps)
+- Kakao Maps JavaScript SDK (지도 + Drawing Library, 동적 스크립트 로드)
 - @turf/turf (지오메트리)
 - Vitest (테스트)
 
@@ -67,7 +71,7 @@ drone-gcp-platform/
 ├── components/
 │   ├── Header.tsx                # KML 다운로드 버튼
 │   ├── Sidebar.tsx               # 컨트롤 패널
-│   ├── MapContainer.tsx          # Google Map
+│   ├── MapContainer.tsx          # Kakao Map
 │   └── ui/                       # shadcn 컴포넌트
 ├── lib/
 │   ├── geometry.ts               # 폴리곤 면적/거리/bbox 헬퍼
@@ -77,3 +81,17 @@ drone-gcp-platform/
 │   └── __tests__/                # 단위 테스트
 └── docs/plans/                   # 설계 문서, 실행 계획
 ```
+
+## 수동 검증 체크리스트
+
+배포 전 또는 큰 변경 후 직접 확인:
+
+1. `.env.local` 설정 후 `npm run dev` 실행
+2. http://localhost:3000 접속, 네트워크 탭에서 `dapi.kakao.com/v2/maps/sdk.js` 요청 성공 확인
+3. 지도 우상단 타입 토글로 **스카이뷰 / 일반 / 하이브리드** 전환
+4. 사이드바 "구역 그리기" → 지도에 다각형 그리기 (마지막 점 더블클릭으로 완료)
+5. GCP가 자동으로 추천 배치되는지 확인 (모서리 4 + 내부 일부)
+6. GCP 마커 **드래그**(이동), **우클릭**(삭제), **빈 곳 클릭**(추가) 동작 확인
+7. 슬라이더로 GCP 개수 조정
+8. **권장값으로 재추천** 버튼 동작 확인
+9. **KML 다운로드** → 다운로드 파일을 Google Earth 또는 다른 KML 뷰어에서 열어 좌표 검증
