@@ -37,7 +37,7 @@ describe('generateGCPs', () => {
     const matched = square1ha.filter((c) =>
       corners.some((g) => Math.abs(g.lat - c.lat) < 1e-6 && Math.abs(g.lng - c.lng) < 1e-6),
     );
-    expect(matched.length).toBeGreaterThanOrEqual(3);
+    expect(matched.length).toBe(4);
   });
 
   it('count <= 4 이면 모서리만 반환', () => {
@@ -66,6 +66,24 @@ describe('generateGCPs', () => {
     const gcps = generateGCPs(square1ha, 6);
     const ids = new Set(gcps.map((g) => g.id));
     expect(ids.size).toBe(gcps.length);
+  });
+
+  it('L자형 폴리곤에서 모든 내부 GCP가 폴리곤 내부에 있음', () => {
+    // L자: (0,0)-(0,2)-(1,2)-(1,1)-(2,1)-(2,0)
+    const lShape = [
+      { lat: 0, lng: 0 },
+      { lat: 0, lng: 2 },
+      { lat: 1, lng: 2 },
+      { lat: 1, lng: 1 },
+      { lat: 2, lng: 1 },
+      { lat: 2, lng: 0 },
+    ];
+    const gcps = generateGCPs(lShape, 8);
+    expect(gcps.length).toBeGreaterThan(0);
+    // 모든 점이 폴리곤 내부 또는 경계에 있어야 함
+    gcps.forEach((g) => {
+      expect(isPointInPolygon({ lat: g.lat, lng: g.lng }, lShape)).toBe(true);
+    });
   });
 
   it('큰 폴리곤에서 모든 내부 점은 폴리곤 내부 또는 경계에 있음', () => {

@@ -3,8 +3,17 @@ import {
   polygonBoundingBox,
   polygonDiameterMeters,
   isPointInPolygon,
+  distanceMeters,
 } from './geometry';
-import * as turf from '@turf/turf';
+
+// Algorithm tuning constants
+const INTERIOR_MIN_DIST_FRACTION = 0.15;  // fraction of polygon diameter
+const MIN_GRID_SIZE = 6;
+const GRID_DENSITY_FACTOR = 4;             // gridSize = max(MIN_GRID_SIZE, ceil(sqrt(n) * GRID_DENSITY_FACTOR))
+const MAX_GRID_SIZE = 50;
+const DISTANCE_DECAY = 0.7;
+const DISTANCE_FLOOR_M = 0.5;
+const MAX_RELAX_ATTEMPTS = 10;
 
 export type GCP = { id: string; lat: number; lng: number; label: string };
 
@@ -14,36 +23,44 @@ export function recommendCount(areaHa: number): number {
 }
 
 function makeId(): string {
-  return Math.random().toString(36).slice(2, 10) + Date.now().toString(36).slice(-4);
+  return crypto.randomUUID();
 }
 
 function labelOf(index: number): string {
   return `GCP-${String(index + 1).padStart(2, '0')}`;
 }
 
-function distanceMeters(a: LatLng, b: LatLng): number {
-  return turf.distance(turf.point([a.lng, a.lat]), turf.point([b.lng, b.lat]), {
-    units: 'meters',
-  });
-}
-
-/** Greedy farthest-first: 첫 점에서 시작, 매번 기존 picked로부터 최소거리가 최대인 점 추가 */
+/** Greedy farthest-first: seeded with one endpoint of the longest pairwise edge for determinism */
 function pickFarthestCorners(coords: LatLng[], n: number): LatLng[] {
   if (coords.length <= n) return [...coords];
-  const picked: LatLng[] = [coords[0]];
-  while (picked.length < n) {
-    let best: LatLng | null = null;
-    let bestDist = -1;
-    for (const c of coords) {
-      if (picked.includes(c)) continue;
-      const minDist = Math.min(...picked.map((p) => distanceMeters(c, p)));
-      if (minDist > bestDist) {
-        bestDist = minDist;
-        best = c;
+  // Seed with one endpoint of the longest pairwise distance
+  let seedIdx = 0;
+  let maxDist = -1;
+  for (let i = 0; i < coords.length; i++) {
+    for (let j = i + 1; j < coords.length; j++) {
+      const d = distanceMeters(coords[i], coords[j]);
+      if (d > maxDist) {
+        maxDist = d;
+        seedIdx = i;
       }
     }
-    if (!best) break;
-    picked.push(best);
+  }
+  const pickedIndices = new Set<number>([seedIdx]);
+  const picked: LatLng[] = [coords[seedIdx]];
+  while (picked.length < n) {
+    let bestIdx = -1;
+    let bestDist = -1;
+    for (let i = 0; i < coords.length; i++) {
+      if (pickedIndices.has(i)) continue;
+      const minDist = Math.min(...picked.map((p) => distanceMeters(coords[i], p)));
+      if (minDist > bestDist) {
+        bestDist = minDist;
+        bestIdx = i;
+      }
+    }
+    if (bestIdx === -1) break;
+    pickedIndices.add(bestIdx);
+    picked.push(coords[bestIdx]);
   }
   return picked;
 }
@@ -93,8 +110,11 @@ function pickInteriorPoints(
   if (!bbox) return [];
 
   const diameter = polygonDiameterMeters(coords);
-  let minDistance = diameter * 0.15;
-  const gridSize = Math.max(6, Math.ceil(Math.sqrt(n) * 4));
+  let minDistance = diameter * INTERIOR_MIN_DIST_FRACTION;
+  const gridSize = Math.min(
+    MAX_GRID_SIZE,
+    Math.max(MIN_GRID_SIZE, Math.ceil(Math.sqrt(n) * GRID_DENSITY_FACTOR)),
+  );
 
   const candidates: LatLng[] = [];
   for (let i = 1; i < gridSize; i++) {
@@ -108,15 +128,15 @@ function pickInteriorPoints(
 
   const picked: LatLng[] = [];
   // 거리 임계 점진 감소
-  for (let attempt = 0; attempt < 10 && picked.length < n; attempt++) {
+  for (let attempt = 0; attempt < MAX_RELAX_ATTEMPTS && picked.length < n; attempt++) {
     for (const c of candidates) {
       if (picked.length >= n) break;
       const all = [...existing, ...picked];
       const ok = all.every((p) => distanceMeters(c, p) >= minDistance);
       if (ok) picked.push(c);
     }
-    if (picked.length < n) minDistance *= 0.7;
-    if (minDistance < 0.5) break;
+    if (picked.length < n) minDistance *= DISTANCE_DECAY;
+    if (minDistance < DISTANCE_FLOOR_M) break;
   }
   return picked.slice(0, n);
 }
@@ -128,7 +148,8 @@ export function generateGCPs(polygon: LatLng[], count: number): GCP[] {
   const corners = pickFarthestCorners(polygon, cornerCount);
   const remaining = count - corners.length;
 
-  const edgeCount = Math.min(remaining, Math.floor(remaining / 3));
+  // Allocate ~1/3 of the remaining budget to edges, rest to interior.
+  const edgeCount = Math.floor(remaining / 3);
   const edges = pickEdgePoints(polygon, edgeCount);
 
   const interiorCount = remaining - edges.length;

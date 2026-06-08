@@ -24,6 +24,14 @@ export function isPointInPolygon(point: LatLng, coords: LatLng[]): boolean {
   return turf.booleanPointInPolygon(turf.point(toPosition(point)), poly);
 }
 
+export function distanceMeters(a: LatLng, b: LatLng): number {
+  return turf.distance(
+    turf.point(toPosition(a)),
+    turf.point(toPosition(b)),
+    { units: 'meters' },
+  );
+}
+
 export function polygonDiameterMeters(coords: LatLng[]): number {
   if (coords.length < 2) return 0;
   let max = 0;
