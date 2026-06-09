@@ -3,6 +3,7 @@
 import { Button } from '@/components/ui/button';
 import { useStore } from '@/lib/store';
 import { generateKML, downloadKML } from '@/lib/kml-generator';
+import KmlImportButton from './KmlImportButton';
 
 export default function Header() {
   const polygon = useStore((s) => s.polygon);
@@ -19,9 +20,12 @@ export default function Header() {
   return (
     <header className="flex h-14 items-center justify-between border-b bg-white px-4">
       <h1 className="text-lg font-semibold">Drone GCP Platform</h1>
-      <Button onClick={onDownload} disabled={!hasContent}>
-        KML 다운로드
-      </Button>
+      <div className="flex items-start gap-2">
+        <KmlImportButton />
+        <Button onClick={onDownload} disabled={!hasContent}>
+          KML 다운로드
+        </Button>
+      </div>
     </header>
   );
 }
