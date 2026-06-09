@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import type { GCP } from '@/lib/gcp-algorithm';
+import { polygonCentroid } from '@/lib/geometry';
 import SearchBar from './SearchBar';
 import type { SearchResult } from '@/lib/search';
 
@@ -166,6 +167,14 @@ export default function MapContainer() {
       map: mapRef.current!,
     });
     polygonRef.current = poly;
+
+    // Pan map to polygon centroid (helps when KML is imported far from current view)
+    const centroid = polygonCentroid(polygon);
+    if (centroid && mapRef.current) {
+      const center = new kakao.maps.LatLng(centroid.lat, centroid.lng);
+      mapRef.current.setCenter(center);
+      if (mapRef.current.getLevel() > 5) mapRef.current.setLevel(5);
+    }
   }, [polygon, status]);
 
   // 4) GCP markers sync (diff-based)
