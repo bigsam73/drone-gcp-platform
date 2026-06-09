@@ -264,6 +264,8 @@ export default function MapContainer() {
   // Unmount cleanup
   useEffect(() => {
     return () => {
+      // Unmount-only cleanup: refs are intentionally the current values at teardown.
+      /* eslint-disable react-hooks/exhaustive-deps */
       markersRef.current.forEach(({ marker, overlay }) => {
         marker.setMap(null);
         overlay.setMap(null);
@@ -276,6 +278,7 @@ export default function MapContainer() {
       searchMarkerRef.current?.marker.setMap(null);
       searchMarkerRef.current?.overlay.setMap(null);
       searchMarkerRef.current = null;
+      /* eslint-enable react-hooks/exhaustive-deps */
     };
   }, []);
 
@@ -286,7 +289,9 @@ export default function MapContainer() {
     const pos = new kakao.maps.LatLng(result.lat, result.lng);
 
     map.setCenter(pos);
-    map.setLevel(3);
+    // Zoom in to level 3, but don't zoom out if the user was already closer.
+    const currentLevel = map.getLevel();
+    if (currentLevel > 3) map.setLevel(3);
 
     if (searchMarkerRef.current) {
       searchMarkerRef.current.marker.setMap(null);

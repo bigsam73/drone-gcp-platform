@@ -30,6 +30,7 @@ declare global {
       constructor(container: HTMLElement, options: MapOptions);
       setCenter(latlng: LatLng): void;
       setLevel(level: number): void;
+      getLevel(): number;
       setMapTypeId(mapTypeId: MapTypeIdValue): void;
       getCenter(): LatLng;
     }

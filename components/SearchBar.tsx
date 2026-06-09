@@ -41,18 +41,21 @@ export default function SearchBar({ onSelect }: Props) {
     return () => document.removeEventListener('mousedown', onClickOutside);
   }, []);
 
-  // Debounced search
+  // Debounced search. setState is only called from async callbacks (not synchronously
+  // in the effect body) to avoid cascading renders. When the query is too short,
+  // the dropdown render is gated by the query length check below.
   useEffect(() => {
     const trimmed = query.trim();
     if (trimmed.length < MIN_QUERY_LENGTH) {
-      setState({ kind: 'idle' });
+      // Invalidate any in-flight result so it can't apply
+      latestRequestRef.current++;
       return;
     }
 
     const requestId = ++latestRequestRef.current;
-    setState({ kind: 'loading' });
 
     const timer = setTimeout(() => {
+      setState({ kind: 'loading' });
       runSearch(trimmed)
         .then((items) => {
           if (requestId !== latestRequestRef.current) return;
@@ -109,7 +112,7 @@ export default function SearchBar({ onSelect }: Props) {
         )}
       </div>
 
-      {open && state.kind !== 'idle' && (
+      {open && query.trim().length >= MIN_QUERY_LENGTH && (
         <div className="mt-1 max-h-80 overflow-auto rounded-md border border-gray-200 bg-white shadow">
           {state.kind === 'loading' && (
             <div className="p-3 text-sm text-gray-500">검색 중...</div>
