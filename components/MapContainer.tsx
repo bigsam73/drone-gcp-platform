@@ -3,6 +3,8 @@
 import { useEffect, useRef, useState } from 'react';
 import { useStore } from '@/lib/store';
 import type { GCP } from '@/lib/gcp-algorithm';
+import SearchBar from './SearchBar';
+import type { SearchResult } from '@/lib/search';
 
 const SCRIPT_ID = 'kakao-maps-sdk';
 const DEFAULT_CENTER = { lat: 37.5665, lng: 126.978 };
@@ -72,6 +74,10 @@ export default function MapContainer() {
     Map<string, { marker: kakao.maps.Marker; overlay: kakao.maps.CustomOverlay; label: string }>
   >(new Map());
   const drawingManagerRef = useRef<kakao.maps.drawing.DrawingManager | null>(null);
+  const searchMarkerRef = useRef<{
+    marker: kakao.maps.Marker;
+    overlay: kakao.maps.CustomOverlay;
+  } | null>(null);
 
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [errorMsg, setErrorMsg] = useState<string>('');
@@ -267,8 +273,41 @@ export default function MapContainer() {
       polygonRef.current = null;
       drawingManagerRef.current?.cancel();
       drawingManagerRef.current = null;
+      searchMarkerRef.current?.marker.setMap(null);
+      searchMarkerRef.current?.overlay.setMap(null);
+      searchMarkerRef.current = null;
     };
   }, []);
+
+  const handleSearchSelect = (result: SearchResult) => {
+    const map = mapRef.current;
+    if (!map) return;
+    const kakao = window.kakao;
+    const pos = new kakao.maps.LatLng(result.lat, result.lng);
+
+    map.setCenter(pos);
+    map.setLevel(3);
+
+    if (searchMarkerRef.current) {
+      searchMarkerRef.current.marker.setMap(null);
+      searchMarkerRef.current.overlay.setMap(null);
+      searchMarkerRef.current = null;
+    }
+
+    const marker = new kakao.maps.Marker({ position: pos, map });
+    const content = document.createElement('div');
+    content.className = 'search-label';
+    content.textContent = result.name;
+    const overlay = new kakao.maps.CustomOverlay({
+      position: pos,
+      content,
+      yAnchor: 2.4,
+      zIndex: 4,
+      map,
+      clickable: false,
+    });
+    searchMarkerRef.current = { marker, overlay };
+  };
 
   if (!appKey) {
     return (
@@ -308,6 +347,8 @@ export default function MapContainer() {
           지도 로딩 중...
         </div>
       )}
+
+      {status === 'ready' && <SearchBar onSelect={handleSearchSelect} />}
 
       {status === 'ready' && (
         <div className="absolute right-3 top-3 z-10 flex overflow-hidden rounded-md border border-gray-200 bg-white shadow">
