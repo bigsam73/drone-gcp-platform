@@ -5,6 +5,11 @@ import {
   isPointInPolygon,
   distanceMeters,
 } from './geometry';
+import {
+  type RecommendationPresetId,
+  DEFAULT_PRESET_ID,
+  getPreset,
+} from './recommendation-presets';
 
 // Algorithm tuning constants
 const INTERIOR_MIN_DIST_FRACTION = 0.15;  // fraction of polygon diameter
@@ -17,9 +22,11 @@ const MAX_RELAX_ATTEMPTS = 10;
 
 export type GCP = { id: string; lat: number; lng: number; label: string };
 
-export function recommendCount(areaHa: number): number {
-  if (areaHa <= 0) return 0;
-  return Math.max(5, Math.ceil(areaHa / 10) + 4);
+export function recommendCount(
+  areaHa: number,
+  presetId: RecommendationPresetId = DEFAULT_PRESET_ID,
+): number {
+  return getPreset(presetId).formula(areaHa);
 }
 
 function makeId(): string {

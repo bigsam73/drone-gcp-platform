@@ -16,6 +16,24 @@ describe('recommendCount', () => {
   it('100 ha → 14', () => expect(recommendCount(100)).toBe(14));
   it('0 → 0', () => expect(recommendCount(0)).toBe(0));
   it('음수 → 0', () => expect(recommendCount(-1)).toBe(0));
+
+  // preset 인자 (Task 2 추가)
+  it('두 번째 인자 생략 시 standard preset 사용', () => {
+    expect(recommendCount(100)).toBe(recommendCount(100, 'standard'));
+    expect(recommendCount(50)).toBe(recommendCount(50, 'standard'));
+  });
+
+  it('preset 인자에 따라 다른 값 반환', () => {
+    // pix4d-precision은 100ha → 19, standard는 14
+    expect(recommendCount(100, 'pix4d-precision')).toBe(19);
+    expect(recommendCount(100, 'standard')).toBe(14);
+    expect(recommendCount(100, 'ngii')).toBe(9);
+  });
+
+  it('preset 인자로 0 면적은 항상 0', () => {
+    expect(recommendCount(0, 'pix4d-precision')).toBe(0);
+    expect(recommendCount(0, 'ngii')).toBe(0);
+  });
 });
 
 describe('generateGCPs', () => {
