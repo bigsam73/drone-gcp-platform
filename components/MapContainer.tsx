@@ -247,10 +247,12 @@ export default function MapContainer() {
       manager.addListener('drawend', (event) => {
         const path = event.target.getPath?.();
         if (!path || path.length < 3) return;
-        const coords = path.map((latLng) => ({
-          lat: latLng.getLat(),
-          lng: latLng.getLng(),
-        }));
+        // Polygon.getPath() returns Coords[] in the map's internal projection,
+        // not LatLng[]. Convert each to WGS84 before storing.
+        const coords = path.map((coord) => {
+          const ll = coord.toLatLng();
+          return { lat: ll.getLat(), lng: ll.getLng() };
+        });
         setPolygon(coords);
         setDrawingMode(false);
       });

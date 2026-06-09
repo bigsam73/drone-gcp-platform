@@ -15,6 +15,15 @@ declare global {
       getLng(): number;
     }
 
+    // Internal projection coordinate (WCONG by default).
+    // Polygon.getPath() returns Coords[], not LatLng[].
+    // Use coord.toLatLng() to convert to WGS84.
+    class Coords {
+      getX(): number;
+      getY(): number;
+      toLatLng(): LatLng;
+    }
+
     class LatLngBounds {
       constructor();
       extend(latlng: LatLng): void;
@@ -88,6 +97,9 @@ declare global {
       constructor(options: PolygonOptions);
       setMap(map: Map | null): void;
       setPath(path: LatLng[]): void;
+      // Returns an array of Coords (internal projection), NOT LatLng.
+      // Convert each with toLatLng() to get WGS84.
+      getPath(): Coords[];
     }
 
     namespace event {
@@ -135,7 +147,9 @@ declare global {
         data: {
           points?: { x: number; y: number }[];
         };
-        target: { getPath?: () => LatLng[] };
+        // target is the drawn overlay instance (e.g. Polygon for polygon mode).
+        // Polygon.getPath() returns Coords[] (internal projection), not LatLng[].
+        target: { getPath?: () => Coords[] };
       }
 
       class DrawingManager {
