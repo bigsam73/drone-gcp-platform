@@ -1,10 +1,25 @@
 'use client';
 
+import { useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Slider } from '@/components/ui/slider';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from '@/components/ui/tooltip';
 import { useStore, useArea, useRecommendedCount } from '@/lib/store';
+import {
+  PRESETS,
+  isValidPresetId,
+  type RecommendationPresetId,
+} from '@/lib/recommendation-presets';
 
 export default function Sidebar() {
+  const preset = useStore((s) => s.preset);
+  const setPreset = useStore((s) => s.setPreset);
   const drawingMode = useStore((s) => s.drawingMode);
   const setDrawingMode = useStore((s) => s.setDrawingMode);
   const polygon = useStore((s) => s.polygon);
@@ -17,6 +32,20 @@ export default function Sidebar() {
   const recommended = useRecommendedCount();
   const min = Math.max(3, Math.ceil(recommended * 0.5));
   const max = Math.max(min + 1, Math.ceil(recommended * 1.5), gcps.length);
+
+  // Restore preset from localStorage on mount (SSR-safe pattern)
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('drone-gcp-preset');
+      if (saved && isValidPresetId(saved)) {
+        setPreset(saved);
+      }
+    } catch {
+      // ignore (Safari private mode etc.)
+    }
+    // setPreset is stable from zustand; only run once on mount.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <aside className="flex h-full w-80 flex-col gap-4 border-r bg-gray-50 p-4">
@@ -48,6 +77,45 @@ export default function Sidebar() {
             <span className="text-gray-600">현재 GCP</span>
             <span className="font-medium">{gcps.length}개</span>
           </div>
+        </div>
+      )}
+
+      {polygon && (
+        <div>
+          <label className="text-sm font-medium">GCP 기준</label>
+          <TooltipProvider delay={150}>
+            <RadioGroup
+              value={preset}
+              onValueChange={(v) => setPreset(v as RecommendationPresetId)}
+              className="mt-2 space-y-1.5"
+            >
+              {PRESETS.map((p) => (
+                <div key={p.id} className="flex items-center gap-2">
+                  <RadioGroupItem value={p.id} id={`preset-${p.id}`} />
+                  <label
+                    htmlFor={`preset-${p.id}`}
+                    className="flex-1 cursor-pointer text-sm"
+                  >
+                    {p.name}
+                  </label>
+                  <Tooltip>
+                    <TooltipTrigger
+                      type="button"
+                      className="rounded-full px-1.5 text-xs text-gray-400 hover:text-gray-700"
+                      aria-label={`${p.name} 설명`}
+                    >
+                      ⓘ
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="max-w-xs text-xs">
+                      <p className="font-medium">{p.name}</p>
+                      <p className="mt-1">{p.description}</p>
+                      <p className="mt-1 opacity-70">출처: {p.source}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </div>
+              ))}
+            </RadioGroup>
+          </TooltipProvider>
         </div>
       )}
 
