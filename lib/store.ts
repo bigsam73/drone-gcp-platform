@@ -17,6 +17,10 @@ type Actions = {
   addGCP: (lat: number, lng: number) => void;
   moveGCP: (id: string, lat: number, lng: number) => void;
   removeGCP: (id: string) => void;
+  importFromKml: (data: {
+    polygon: LatLng[] | null;
+    gcps: { lat: number; lng: number; label: string }[];
+  }) => void;
   reset: () => void;
 };
 
@@ -67,6 +71,46 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   removeGCP: (id) =>
     set({ gcps: relabel(get().gcps.filter((g) => g.id !== id)) }),
+
+  importFromKml: (data) => {
+    if (data.polygon && data.gcps.length > 0) {
+      // 폴리곤 + GCP 모두 KML에서 가져옴 → 라벨 재번호, 자동 추천 없음
+      const gcps: GCP[] = data.gcps.map((g, i) => ({
+        id: crypto.randomUUID(),
+        lat: g.lat,
+        lng: g.lng,
+        label: labelOf(i),
+      }));
+      set({
+        polygon: data.polygon,
+        gcps,
+        userCountOverride: gcps.length,
+        drawingMode: false,
+      });
+      return;
+    }
+    if (data.polygon) {
+      // 폴리곤만 → setPolygon과 동일 (자동 추천)
+      const area = polygonAreaHa(data.polygon);
+      const recommended = recommendCount(area);
+      const gcps = generateGCPs(data.polygon, recommended);
+      set({
+        polygon: data.polygon,
+        gcps,
+        userCountOverride: null,
+        drawingMode: false,
+      });
+      return;
+    }
+    // GCP만 (polygon === null)
+    const gcps: GCP[] = data.gcps.map((g, i) => ({
+      id: crypto.randomUUID(),
+      lat: g.lat,
+      lng: g.lng,
+      label: labelOf(i),
+    }));
+    set({ polygon: null, gcps, userCountOverride: null, drawingMode: false });
+  },
 
   reset: () =>
     set({ polygon: null, gcps: [], userCountOverride: null, drawingMode: false }),

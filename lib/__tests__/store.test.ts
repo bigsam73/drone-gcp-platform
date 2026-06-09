@@ -87,4 +87,73 @@ describe('useStore', () => {
     useStore.getState().setDrawingMode(false);
     expect(useStore.getState().drawingMode).toBe(false);
   });
+
+  it('importFromKml(polygon만) → 자동 추천 GCP 생성', () => {
+    useStore.getState().importFromKml({
+      polygon: [
+        { lat: 37.5,      lng: 127.0      },
+        { lat: 37.5,      lng: 127.01134  },
+        { lat: 37.50902,  lng: 127.01134  },
+        { lat: 37.50902,  lng: 127.0      },
+      ],
+      gcps: [],
+    });
+    const s = useStore.getState();
+    expect(s.polygon).toHaveLength(4);
+    expect(s.gcps.length).toBeGreaterThanOrEqual(5);
+    expect(s.drawingMode).toBe(false);
+  });
+
+  it('importFromKml(polygon+gcps) → KML의 GCP 그대로, 라벨 재번호', () => {
+    useStore.getState().importFromKml({
+      polygon: [
+        { lat: 0, lng: 0 },
+        { lat: 0, lng: 1 },
+        { lat: 1, lng: 1 },
+      ],
+      gcps: [
+        { lat: 0.1, lng: 0.1, label: 'Foo' },
+        { lat: 0.2, lng: 0.2, label: 'Bar' },
+        { lat: 0.3, lng: 0.3, label: 'Baz' },
+      ],
+    });
+    const s = useStore.getState();
+    expect(s.polygon).toHaveLength(3);
+    expect(s.gcps).toHaveLength(3);
+    expect(s.gcps[0].label).toBe('GCP-01');
+    expect(s.gcps[1].label).toBe('GCP-02');
+    expect(s.gcps[2].label).toBe('GCP-03');
+    expect(s.gcps[0].lat).toBeCloseTo(0.1, 5);
+    expect(s.userCountOverride).toBe(3);
+  });
+
+  it('importFromKml(gcps만, polygon=null) → polygon은 null', () => {
+    useStore.getState().importFromKml({
+      polygon: null,
+      gcps: [{ lat: 0, lng: 0, label: 'GCP-01' }],
+    });
+    const s = useStore.getState();
+    expect(s.polygon).toBeNull();
+    expect(s.gcps).toHaveLength(1);
+  });
+
+  it('importFromKml은 기존 상태를 완전 대체', () => {
+    useStore.getState().setPolygon([
+      { lat: 37.5, lng: 127.0 },
+      { lat: 37.5, lng: 127.01134 },
+      { lat: 37.50902, lng: 127.01134 },
+      { lat: 37.50902, lng: 127.0 },
+    ]);
+    expect(useStore.getState().gcps.length).toBeGreaterThan(0);
+
+    useStore.getState().importFromKml({
+      polygon: null,
+      gcps: [{ lat: 1, lng: 1, label: 'GCP-01' }],
+    });
+
+    const s = useStore.getState();
+    expect(s.polygon).toBeNull();
+    expect(s.gcps).toHaveLength(1);
+    expect(s.gcps[0].lat).toBe(1);
+  });
 });
