@@ -10,6 +10,7 @@ const square = [
 
 describe('useStore', () => {
   beforeEach(() => {
+    localStorage.clear();
     useStore.getState().reset();
   });
 
@@ -155,5 +156,49 @@ describe('useStore', () => {
     expect(s.polygon).toBeNull();
     expect(s.gcps).toHaveLength(1);
     expect(s.gcps[0].lat).toBe(1);
+  });
+
+  it('초기 preset은 standard', () => {
+    expect(useStore.getState().preset).toBe('standard');
+  });
+
+  it('setPreset이 preset 상태 변경', () => {
+    useStore.getState().setPreset('pix4d-precision');
+    expect(useStore.getState().preset).toBe('pix4d-precision');
+  });
+
+  it('setPreset 후 폴리곤 있고 userCountOverride 없으면 GCP 재추천', () => {
+    useStore.getState().setPolygon(square);
+    const standardCount = useStore.getState().gcps.length;
+
+    useStore.getState().setPreset('pix4d-precision');
+    const precisionCount = useStore.getState().gcps.length;
+
+    // Standard와 Pix4D Precision은 같은 면적에서 다른 권장 개수를 줘야 함.
+    // square는 약 1ha 정도이므로 Standard=5, Precision=10 정도.
+    expect(precisionCount).not.toBe(standardCount);
+    expect(precisionCount).toBeGreaterThanOrEqual(10);
+  });
+
+  it('setPreset 후 userCountOverride 있으면 GCP 개수 유지', () => {
+    useStore.getState().setPolygon(square);
+    useStore.getState().setUserCount(7);
+    expect(useStore.getState().gcps.length).toBe(7);
+
+    useStore.getState().setPreset('ngii');
+    // userCountOverride(7)가 살아있으므로 개수 유지
+    expect(useStore.getState().gcps.length).toBe(7);
+    expect(useStore.getState().preset).toBe('ngii');
+  });
+
+  it('setPreset은 localStorage에 저장', () => {
+    useStore.getState().setPreset('agisoft');
+    expect(localStorage.getItem('drone-gcp-preset')).toBe('agisoft');
+  });
+
+  it('reset은 preset도 standard로 초기화', () => {
+    useStore.getState().setPreset('ngii');
+    useStore.getState().reset();
+    expect(useStore.getState().preset).toBe('standard');
   });
 });

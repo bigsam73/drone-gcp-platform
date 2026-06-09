@@ -1,12 +1,17 @@
 import { create } from 'zustand';
 import { LatLng, polygonAreaHa } from './geometry';
 import { GCP, generateGCPs, recommendCount } from './gcp-algorithm';
+import {
+  type RecommendationPresetId,
+  DEFAULT_PRESET_ID,
+} from './recommendation-presets';
 
 type State = {
   polygon: LatLng[] | null;
   gcps: GCP[];
   userCountOverride: number | null;
   drawingMode: boolean;
+  preset: RecommendationPresetId;
 };
 
 type Actions = {
@@ -17,6 +22,7 @@ type Actions = {
   addGCP: (lat: number, lng: number) => void;
   moveGCP: (id: string, lat: number, lng: number) => void;
   removeGCP: (id: string) => void;
+  setPreset: (id: RecommendationPresetId) => void;
   importFromKml: (data: {
     polygon: LatLng[] | null;
     gcps: { lat: number; lng: number; label: string }[];
@@ -34,12 +40,13 @@ export const useStore = create<State & Actions>((set, get) => ({
   gcps: [],
   userCountOverride: null,
   drawingMode: false,
+  preset: DEFAULT_PRESET_ID,
 
   setDrawingMode: (mode) => set({ drawingMode: mode }),
 
   setPolygon: (coords) => {
     const area = polygonAreaHa(coords);
-    const recommended = recommendCount(area);
+    const recommended = recommendCount(area, get().preset);
     const gcps = generateGCPs(coords, recommended);
     set({ polygon: coords, gcps, userCountOverride: null, drawingMode: false });
   },
@@ -52,10 +59,10 @@ export const useStore = create<State & Actions>((set, get) => ({
   },
 
   regenerate: () => {
-    const { polygon, userCountOverride } = get();
+    const { polygon, userCountOverride, preset } = get();
     if (!polygon) return;
     const area = polygonAreaHa(polygon);
-    const count = userCountOverride ?? recommendCount(area);
+    const count = userCountOverride ?? recommendCount(area, preset);
     set({ gcps: generateGCPs(polygon, count) });
   },
 
@@ -71,6 +78,25 @@ export const useStore = create<State & Actions>((set, get) => ({
 
   removeGCP: (id) =>
     set({ gcps: relabel(get().gcps.filter((g) => g.id !== id)) }),
+
+  setPreset: (id) => {
+    set({ preset: id });
+
+    // localStorage 저장 (Safari private mode 등 대비 try/catch)
+    try {
+      localStorage.setItem('drone-gcp-preset', id);
+    } catch {
+      // ignore
+    }
+
+    // 폴리곤 있고 userCountOverride 없으면 새 preset으로 재추천
+    const { polygon, userCountOverride } = get();
+    if (polygon && userCountOverride === null) {
+      const area = polygonAreaHa(polygon);
+      const recommended = recommendCount(area, id);
+      set({ gcps: generateGCPs(polygon, recommended) });
+    }
+  },
 
   importFromKml: (data) => {
     if (data.polygon && data.gcps.length > 0) {
@@ -92,7 +118,7 @@ export const useStore = create<State & Actions>((set, get) => ({
     if (data.polygon) {
       // 폴리곤만 → setPolygon과 동일 (자동 추천)
       const area = polygonAreaHa(data.polygon);
-      const recommended = recommendCount(area);
+      const recommended = recommendCount(area, get().preset);
       const gcps = generateGCPs(data.polygon, recommended);
       set({
         polygon: data.polygon,
@@ -113,7 +139,13 @@ export const useStore = create<State & Actions>((set, get) => ({
   },
 
   reset: () =>
-    set({ polygon: null, gcps: [], userCountOverride: null, drawingMode: false }),
+    set({
+      polygon: null,
+      gcps: [],
+      userCountOverride: null,
+      drawingMode: false,
+      preset: DEFAULT_PRESET_ID,
+    }),
 }));
 
 // Derived hooks
@@ -124,5 +156,6 @@ export const useArea = () => {
 
 export const useRecommendedCount = () => {
   const area = useArea();
-  return recommendCount(area);
+  const preset = useStore((s) => s.preset);
+  return recommendCount(area, preset);
 };
