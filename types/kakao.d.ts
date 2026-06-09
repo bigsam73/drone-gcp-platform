@@ -145,6 +145,50 @@ declare global {
         addListener(eventName: 'drawend', handler: (event: DrawendEvent) => void): void;
       }
     }
+
+    namespace services {
+      type Status = 'OK' | 'ZERO_RESULT' | 'ERROR';
+
+      interface PlacesSearchResultItem {
+        id?: string;
+        place_name: string;
+        address_name: string;
+        road_address_name?: string;
+        x: string;
+        y: string;
+        category_group_name?: string;
+      }
+
+      interface AddressSearchResultItem {
+        address_name: string;
+        address?: { address_name: string };
+        road_address?: { address_name: string; building_name?: string };
+        x: string;
+        y: string;
+      }
+
+      interface SearchOptions {
+        size?: number;
+        page?: number;
+      }
+
+      class Places {
+        constructor();
+        keywordSearch(
+          keyword: string,
+          callback: (result: PlacesSearchResultItem[], status: Status) => void,
+          options?: SearchOptions,
+        ): void;
+      }
+
+      class Geocoder {
+        constructor();
+        addressSearch(
+          address: string,
+          callback: (result: AddressSearchResultItem[], status: Status) => void,
+        ): void;
+      }
+    }
   }
 }
 

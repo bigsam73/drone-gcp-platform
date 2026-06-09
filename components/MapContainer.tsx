@@ -44,7 +44,7 @@ function loadKakaoSdk(appKey: string): Promise<void> {
     const script = document.createElement('script');
     script.id = SCRIPT_ID;
     script.async = true;
-    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&libraries=drawing&autoload=false`;
+    script.src = `https://dapi.kakao.com/v2/maps/sdk.js?appkey=${appKey}&libraries=drawing,services&autoload=false`;
 
     const timer = setTimeout(() => {
       if (!window.kakao?.maps) reject(new Error('SDK load timeout'));

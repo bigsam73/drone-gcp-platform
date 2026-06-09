@@ -143,3 +143,21 @@
   pointer-events: none;
   transform: translate(-50%, 0);
 }
+
+.search-label {
+  display: inline-block;
+  background-color: #2563eb;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 9999px;
+  border: 2px solid #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  white-space: nowrap;
+  pointer-events: none;
+  transform: translate(-50%, 0);
+  max-width: 240px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
